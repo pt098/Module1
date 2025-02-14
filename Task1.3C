@@ -1,0 +1,60 @@
+// Global flags for sensor interrupts
+volatile bool motionTriggered = false;
+volatile bool irTriggered = false;
+
+// Define sensor pins (adjust if needed)
+const byte motionSensorPin = 2; // Motion sensor output connected to digital pin 2
+const byte irSensorPin     = 3; // IR sensor output connected to digital pin 3
+
+// Built-in LED (pin 13)
+const byte ledPin = LED_BUILTIN;
+
+void setup() {
+  // Start serial communication at 9600 baud for logging sensor events
+  Serial.begin(9600);
+  
+  // Set up the LED as output
+  pinMode(ledPin, OUTPUT);
+  
+  // Set sensor pins as input
+  pinMode(motionSensorPin, INPUT);
+  pinMode(irSensorPin, INPUT);
+  
+  // Attach interrupts to sensor pins
+  // For the motion sensor, assume it goes HIGH when motion is detected
+  attachInterrupt(digitalPinToInterrupt(motionSensorPin), motionISR, RISING);
+  
+  // For the IR sensor, adjust based on your sensor's behavior:
+  // Here we assume it goes HIGH when an object is detected.
+  attachInterrupt(digitalPinToInterrupt(irSensorPin), irISR, RISING);
+}
+
+void loop() {
+  // If motion sensor triggered, handle it
+  if (motionTriggered) {
+    motionTriggered = false; // reset flag
+    digitalWrite(ledPin, HIGH);  // Turn on LED as feedback
+    Serial.println("Motion detected!");
+    delay(100);                  // Brief delay to make LED flash visible
+    digitalWrite(ledPin, LOW);   // Turn off LED
+  }
+  
+  // If IR sensor triggered, handle it
+  if (irTriggered) {
+    irTriggered = false; // reset flag
+    digitalWrite(ledPin, HIGH);
+    Serial.println("IR sensor triggered!");
+    delay(100);
+    digitalWrite(ledPin, LOW);
+  }
+}
+
+// Interrupt Service Routine for the motion sensor
+void motionISR() {
+  motionTriggered = true;
+}
+
+// Interrupt Service Routine for the IR sensor
+void irISR() {
+  irTriggered = true;
+}
