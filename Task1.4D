@@ -1,0 +1,109 @@
+#include <avr/io.h>       // For direct register access (PCINT and Timer1)
+#include <avr/interrupt.h> // For ISR definitions
+
+// Global flags for sensor interrupts (volatile since they're modified in ISRs)
+volatile bool motionTriggered = false;  // Motion sensor flag
+volatile bool irTriggered = false;      // IR sensor flag
+volatile bool buttonTriggered = false;  // Button flag
+volatile bool timerTriggered = false;   // Timer flag
+
+// Define sensor and LED pins
+const byte motionSensorPin = 2;  // Motion sensor on pin 2 (INT0)
+const byte irSensorPin = 3;      // IR sensor on pin 3 (INT1)
+const byte buttonPin = 4;        // Button on pin 4 (PCINT20)
+const byte timerLedPin = 12;     // Timer LED on pin 12
+const byte ledPin = LED_BUILTIN; // Built-in LED (pin 13) for sensor feedback
+
+void setup() {
+  // Start serial communication at 9600 baud for logging
+  Serial.begin(9600);
+  
+  // Set up LED pins as outputs
+  pinMode(ledPin, OUTPUT);
+  pinMode(timerLedPin, OUTPUT);
+  
+  // Set sensor pins as inputs
+  pinMode(motionSensorPin, INPUT);
+  pinMode(irSensorPin, INPUT);
+  pinMode(buttonPin, INPUT);
+  
+  // Attach external interrupts for motion and IR sensors (trigger on rising edge)
+  attachInterrupt(digitalPinToInterrupt(motionSensorPin), motionISR, RISING);
+  attachInterrupt(digitalPinToInterrupt(irSensorPin), irISR, RISING);
+  
+  // Enable Pin Change Interrupt for button on pin 4 (PCINT20)
+  PCICR |= (1 << PCIE2);    // Enable PCINT2 interrupt (for pins D0-D7)
+  PCMSK2 |= (1 << PCINT20); // Enable interrupt specifically for pin 4
+  
+  // Set up Timer1 for 1-second interrupts
+  TCCR1A = 0;               // Clear Timer1 control registers
+  TCCR1B = 0;
+  TCNT1 = 0;                // Reset counter
+  OCR1A = 15624;            // Compare value for 1 Hz (16MHz / 1024 / 15625 = 1s)
+  TCCR1B |= (1 << WGM12);   // Set CTC mode (clear timer on compare)
+  TCCR1B |= (1 << CS12) | (1 << CS10); // Prescaler 1024
+  TIMSK1 |= (1 << OCIE1A);  // Enable Timer1 compare match interrupt
+}
+
+void loop() {
+  // Handle motion sensor trigger
+  if (motionTriggered) {
+    motionTriggered = false;      // Reset flag
+    digitalWrite(ledPin, HIGH);   // Turn on built-in LED
+    Serial.println("Motion detected!");
+    delay(100);                   // Brief flash
+    digitalWrite(ledPin, LOW);    // Turn off LED
+  }
+  
+  // Handle IR sensor trigger
+  if (irTriggered) {
+    irTriggered = false;
+    digitalWrite(ledPin, HIGH);
+    Serial.println("IR sensor triggered!");
+    delay(100);
+    digitalWrite(ledPin, LOW);
+  }
+  
+  // Handle button press
+  if (buttonTriggered) {
+    buttonTriggered = false;
+    digitalWrite(ledPin, HIGH);
+    Serial.println("Button pressed!");
+    delay(100);
+    digitalWrite(ledPin, LOW);
+  }
+  
+  // Handle timer trigger (every 1 second)
+  if (timerTriggered) {
+    timerTriggered = false;
+    // Toggle timer LED on pin 12
+    digitalWrite(timerLedPin, !digitalRead(timerLedPin));
+    // Read analog sensor (potentiometer) on A0 and print value
+    int analogValue = analogRead(A0);
+    Serial.print("Analog value: ");
+    Serial.println(analogValue);
+  }
+}
+
+// ISR for motion sensor (external interrupt on pin 2)
+void motionISR() {
+  motionTriggered = true;
+}
+
+// ISR for IR sensor (external interrupt on pin 3)
+void irISR() {
+  irTriggered = true;
+}
+
+// ISR for button (Pin Change Interrupt on PCINT2 group)
+ISR(PCINT2_vect) {
+  // Check if button pin is HIGH (pressed)
+  if (digitalRead(buttonPin) == HIGH) {
+    buttonTriggered = true;
+  }
+}
+
+// ISR for Timer1 compare match (triggers every 1 second)
+ISR(TIMER1_COMPA_vect) {
+  timerTriggered = true;
+}
